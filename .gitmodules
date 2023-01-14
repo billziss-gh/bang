@@ -1,0 +1,3 @@
+[submodule "ext/detours"]
+	path = ext/detours
+	url = https://github.com/microsoft/Detours.git
