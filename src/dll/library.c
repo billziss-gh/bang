@@ -12,6 +12,8 @@
 
 #include <dll/library.h>
 
+CHAR ModuleFileNameA[MAX_PATH];
+
 BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
 {
     if (DetourIsHelperProcess())
@@ -20,17 +22,19 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
     switch (Reason)
     {
     case DLL_PROCESS_ATTACH:
+        GetModuleFileNameA(Instance, ModuleFileNameA, MAX_PATH);
+
         DetourRestoreAfterWith();
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        HookAttach(TRUE);
+        HookCreateProcess(TRUE, BangPreprocessPacketA, BangPreprocessPacketW);
         DetourTransactionCommit();
         break;
 
     case DLL_PROCESS_DETACH:
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        HookAttach(FALSE);
+        HookCreateProcess(FALSE, 0, 0);
         DetourTransactionCommit();
         break;
     }

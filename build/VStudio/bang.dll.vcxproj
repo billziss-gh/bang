@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\bang.c" />
+    <ClCompile Include="..\..\src\dll\cphook.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
   </ItemGroup>
   <ItemGroup>

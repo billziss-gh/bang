@@ -16,6 +16,59 @@
 #include <windows.h>
 #include <detours.h>
 
-static inline VOID HookAttach(BOOL Flag) {}
+extern CHAR ModuleFileNameA[];
+
+struct CreateProcessPacketA
+{
+    /* result */
+    PROCESS_INFORMATION ProcessInformation;
+    /* arguments */
+    HANDLE hToken;
+    LPCSTR lpApplicationName;
+    LPSTR lpCommandLine;
+    LPSECURITY_ATTRIBUTES lpProcessAttributes;
+    LPSECURITY_ATTRIBUTES lpThreadAttributes;
+    BOOL bInheritHandles;
+    DWORD dwCreationFlags;
+    LPVOID lpEnvironment;
+    LPCSTR lpCurrentDirectory;
+    LPSTARTUPINFOA lpStartupInfo;
+    LPPROCESS_INFORMATION lpProcessInformation;
+    /* buffers */
+    CHAR ApplicationName[MAX_PATH];
+    CHAR CommandLine[32767];
+};
+
+struct CreateProcessPacketW
+{
+    /* result */
+    PROCESS_INFORMATION ProcessInformation;
+    /* arguments */
+    HANDLE hToken;
+    LPCWSTR lpApplicationName;
+    LPWSTR lpCommandLine;
+    LPSECURITY_ATTRIBUTES lpProcessAttributes;
+    LPSECURITY_ATTRIBUTES lpThreadAttributes;
+    BOOL bInheritHandles;
+    DWORD dwCreationFlags;
+    LPVOID lpEnvironment;
+    LPCWSTR lpCurrentDirectory;
+    LPSTARTUPINFOW lpStartupInfo;
+    LPPROCESS_INFORMATION lpProcessInformation;
+    LPCWSTR lpUsername;
+    LPCWSTR lpDomain;
+    LPCWSTR lpPassword;
+    DWORD dwLogonFlags;
+    /* buffers */
+    WCHAR ApplicationName[MAX_PATH];
+    WCHAR CommandLine[32767];
+};
+
+VOID HookCreateProcess(BOOL Flag,
+    VOID (*PreprocessA)(struct CreateProcessPacketA *),
+    VOID (*PreprocessW)(struct CreateProcessPacketW *));
+
+VOID BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket);
+VOID BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket);
 
 #endif
