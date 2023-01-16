@@ -119,7 +119,7 @@ static int attach(int argc, char **argv)
     GetExitCodeThread(RemoteThread, &RemoteExitCode);
     if (0 == RemoteExitCode)
     {
-        warn("cannot load bang.dll in process id %lu", ProcessId);
+        warn("cannot load %s in process id %lu", ModuleFileNameSuffix, ProcessId);
         ExitCode = 1;
         goto exit;
     }
