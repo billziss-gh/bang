@@ -12,10 +12,12 @@
 
 #include <dll/library.h>
 
-VOID BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket)
+BOOL BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket)
 {
+    return TRUE;
 }
 
-VOID BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket)
+BOOL BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket)
 {
+    return TRUE;
 }

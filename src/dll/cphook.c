@@ -23,20 +23,33 @@
         __VA_ARGS__;                    \
         *lpProcessInformation = (PROCESS_INFORMATION){ 0 };\
         TlsSetValue(CreateProcessPacketTlsIndex, &CreateProcessPacket);\
-        PreprocessPacket ## T(&CreateProcessPacket);\
-        Result = DetourCreateProcessWithDllEx ## T(\
-            ARG(lpApplicationName),     \
-            ARG(lpCommandLine),         \
-            ARG(lpProcessAttributes),   \
-            ARG(lpThreadAttributes),    \
-            ARG(bInheritHandles),       \
-            ARG(dwCreationFlags),       \
-            ARG(lpEnvironment),         \
-            ARG(lpCurrentDirectory),    \
-            ARG(lpStartupInfo),         \
-            &ARG(ProcessInformation),   \
-            ModuleFileNameA,            \
-            Wrap_ ## N);                \
+        Result = PreprocessPacket ## T(&CreateProcessPacket);\
+        if (Result)                     \
+            Result = DetourCreateProcessWithDllEx ## T(\
+                ARG(lpApplicationName), \
+                ARG(lpCommandLine),     \
+                ARG(lpProcessAttributes),\
+                ARG(lpThreadAttributes),\
+                ARG(bInheritHandles),   \
+                ARG(dwCreationFlags),   \
+                ARG(lpEnvironment),     \
+                ARG(lpCurrentDirectory),\
+                ARG(lpStartupInfo),     \
+                &ARG(ProcessInformation),\
+                ModuleFileNameA,        \
+                Wrap_ ## N);            \
+        else                            \
+            Result = Wrap_ ## N(\
+                ARG(lpApplicationName), \
+                ARG(lpCommandLine),     \
+                ARG(lpProcessAttributes),\
+                ARG(lpThreadAttributes),\
+                ARG(bInheritHandles),   \
+                ARG(dwCreationFlags),   \
+                ARG(lpEnvironment),     \
+                ARG(lpCurrentDirectory),\
+                ARG(lpStartupInfo),     \
+                &ARG(ProcessInformation));\
         TlsSetValue(CreateProcessPacketTlsIndex, 0);\
         if (Result)                     \
             *lpProcessInformation = ARG(ProcessInformation);\
@@ -102,8 +115,8 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
     LPPROCESS_INFORMATION lpProcessInformation);
 
 static DWORD CreateProcessPacketTlsIndex = TLS_OUT_OF_INDEXES;
-static VOID (*PreprocessPacketA)(struct CreateProcessPacketA *);
-static VOID (*PreprocessPacketW)(struct CreateProcessPacketW *);
+static BOOL (*PreprocessPacketA)(struct CreateProcessPacketA *);
+static BOOL (*PreprocessPacketW)(struct CreateProcessPacketW *);
 
 HOOK_IMPL(CreateProcessA, A, (
     LPCSTR lpApplicationName,
@@ -416,8 +429,8 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
 }
 
 VOID HookCreateProcess(BOOL Flag,
-    VOID (*PreprocessA)(struct CreateProcessPacketA *),
-    VOID (*PreprocessW)(struct CreateProcessPacketW *))
+    BOOL (*PreprocessA)(struct CreateProcessPacketA *),
+    BOOL (*PreprocessW)(struct CreateProcessPacketW *))
 {
     if (Flag)
         CreateProcessPacketTlsIndex = TlsAlloc();
