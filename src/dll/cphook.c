@@ -63,8 +63,8 @@
 #define SETARG(N)                       \
     CreateProcessPacket.N = N
 
-#define Wrap_CreateProcessA             CreateProcessA
-#define Wrap_CreateProcessW             CreateProcessW
+#define Wrap_CreateProcessA             Real_CreateProcessA
+#define Wrap_CreateProcessW             Real_CreateProcessW
 static
 BOOL WINAPI Wrap_CreateProcessAsUserA(
     LPCSTR lpApplicationName,
