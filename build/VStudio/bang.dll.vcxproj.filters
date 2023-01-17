@@ -21,6 +21,9 @@
     <None Include="..\..\src\dll\library.def">
       <Filter>Source</Filter>
     </None>
+    <None Include="..\..\src\dll\bang.i">
+      <Filter>Source</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\dll\library.h">

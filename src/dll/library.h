@@ -18,6 +18,8 @@
 
 extern CHAR ModuleFileNameA[];
 
+#define MAX_COMMANDLINE                 32767
+
 struct CreateProcessPacketA
 {
     /* output; ProcessInformation must be first */
@@ -37,7 +39,7 @@ struct CreateProcessPacketA
     /* extra */
     BOOL Detour;
     CHAR ApplicationName[MAX_PATH];
-    CHAR CommandLine[32767];
+    CHAR CommandLine[MAX_COMMANDLINE];
 };
 
 struct CreateProcessPacketW
@@ -63,7 +65,7 @@ struct CreateProcessPacketW
     /* extra */
     BOOL Detour;
     WCHAR ApplicationName[MAX_PATH];
-    WCHAR CommandLine[32767];
+    WCHAR CommandLine[MAX_COMMANDLINE];
 };
 
 VOID HookCreateProcess(BOOL Flag,

@@ -17,6 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+__declspec(dllimport)
+VOID BangLoad(VOID);
+
 static void warn(const char *format, ...)
 {
     va_list ap;
@@ -141,7 +144,26 @@ exit:
 
 static int spawn(int argc, char **argv)
 {
-    return 0 == _spawnvp(_P_NOWAIT, argv[0], argv);
+    HANDLE Process = INVALID_HANDLE_VALUE;
+    int ExitCode;
+
+    BangLoad();
+
+    Process = (HANDLE)_spawnvp(_P_NOWAIT, argv[0], argv);
+    if (INVALID_HANDLE_VALUE == Process)
+    {
+        warn("cannot spawn process %s", argv[0]);
+        ExitCode = 1;
+        goto exit;
+    }
+
+    ExitCode = 0;
+
+exit:
+    if (INVALID_HANDLE_VALUE != Process)
+        CloseHandle(Process);
+
+    return ExitCode;
 }
 
 int main(int argc, char **argv)

@@ -24,6 +24,7 @@
     <ClCompile Include="..\..\src\dll\library.c" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\dll\bang.i" />
     <None Include="..\..\src\dll\library.def" />
   </ItemGroup>
   <ItemGroup>
