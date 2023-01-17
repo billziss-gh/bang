@@ -12,27 +12,24 @@
 
 #include <dll/library.h>
 
-static
-BOOL BangDebugLogA(struct CreateProcessPacketA *CreateProcessPacket);
-static
-BOOL BangDebugLogW(struct CreateProcessPacketW *CreateProcessPacket);
-
 static DWORD BangDebugFlags = 0;
 
-BOOL BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket)
+static
+VOID BangDebugLogA(struct CreateProcessPacketA *CreateProcessPacket)
 {
-    if (BangDebugFlags)
-        return BangDebugLogA(CreateProcessPacket);
-
-    return TRUE;
+    CHAR Buf[1024];
+    DWORD Bytes;
+    wsprintfA(Buf, "bang: %s\n", CreateProcessPacket->lpApplicationName);
+    WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &Bytes, 0);
 }
 
-BOOL BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket)
+static
+VOID BangDebugLogW(struct CreateProcessPacketW *CreateProcessPacket)
 {
-    if (BangDebugFlags)
-        return BangDebugLogW(CreateProcessPacket);
-
-    return TRUE;
+    CHAR Buf[1024];
+    DWORD Bytes;
+    wsprintfA(Buf, "bang: %S", CreateProcessPacket->lpApplicationName);
+    WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &Bytes, 0);
 }
 
 __declspec(dllexport)
@@ -41,26 +38,20 @@ VOID BangSetDebugFlags(DWORD DebugFlags)
     BangDebugFlags = DebugFlags;
 }
 
-static
-BOOL BangDebugLogA(struct CreateProcessPacketA *CreateProcessPacket)
+VOID BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket)
 {
-    CHAR Buf[1024];
-    DWORD BytesWritten;
-
-    wsprintfA(Buf, "bang: %s\n", CreateProcessPacket->lpApplicationName);
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &BytesWritten, 0);
-
-    return TRUE;
+    if (BangDebugFlags)
+    {
+        BangDebugLogA(CreateProcessPacket);
+        return;
+    }
 }
 
-static
-BOOL BangDebugLogW(struct CreateProcessPacketW *CreateProcessPacket)
+VOID BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket)
 {
-    CHAR Buf[1024];
-    DWORD BytesWritten;
-
-    wsprintfA(Buf, "bang: %S", CreateProcessPacket->lpApplicationName);
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &BytesWritten, 0);
-
-    return TRUE;
+    if (BangDebugFlags)
+    {
+        BangDebugLogW(CreateProcessPacket);
+        return;
+    }
 }

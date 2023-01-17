@@ -20,9 +20,9 @@ extern CHAR ModuleFileNameA[];
 
 struct CreateProcessPacketA
 {
-    /* result */
+    /* output; ProcessInformation must be first */
     PROCESS_INFORMATION ProcessInformation;
-    /* arguments */
+    /* input */
     HANDLE hToken;
     LPCSTR lpApplicationName;
     LPSTR lpCommandLine;
@@ -34,16 +34,17 @@ struct CreateProcessPacketA
     LPCSTR lpCurrentDirectory;
     LPSTARTUPINFOA lpStartupInfo;
     LPPROCESS_INFORMATION lpProcessInformation;
-    /* buffers */
+    /* extra */
+    BOOL Detour;
     CHAR ApplicationName[MAX_PATH];
     CHAR CommandLine[32767];
 };
 
 struct CreateProcessPacketW
 {
-    /* result */
+    /* output; ProcessInformation must be first */
     PROCESS_INFORMATION ProcessInformation;
-    /* arguments */
+    /* input */
     HANDLE hToken;
     LPCWSTR lpApplicationName;
     LPWSTR lpCommandLine;
@@ -59,16 +60,17 @@ struct CreateProcessPacketW
     LPCWSTR lpDomain;
     LPCWSTR lpPassword;
     DWORD dwLogonFlags;
-    /* buffers */
+    /* extra */
+    BOOL Detour;
     WCHAR ApplicationName[MAX_PATH];
     WCHAR CommandLine[32767];
 };
 
 VOID HookCreateProcess(BOOL Flag,
-    BOOL (*PreprocessA)(struct CreateProcessPacketA *),
-    BOOL (*PreprocessW)(struct CreateProcessPacketW *));
+    VOID (*PreprocessA)(struct CreateProcessPacketA *),
+    VOID (*PreprocessW)(struct CreateProcessPacketW *));
 
-BOOL BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket);
-BOOL BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket);
+VOID BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket);
+VOID BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket);
 
 #endif

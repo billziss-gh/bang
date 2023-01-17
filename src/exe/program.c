@@ -44,7 +44,7 @@ static int attach(int argc, char **argv)
     PVOID RemoteBuffer = 0;
     HANDLE RemoteThread = 0;
     DWORD RemoteExitCode;
-    SIZE_T BytesWritten;
+    SIZE_T Bytes;
     int ExitCode;
 
     if (2 > argc)
@@ -100,7 +100,7 @@ static int attach(int argc, char **argv)
         goto exit;
     }
 
-    if (!WriteProcessMemory(Process, RemoteBuffer, ModuleFileName, strlen(ModuleFileName) + 1, &BytesWritten))
+    if (!WriteProcessMemory(Process, RemoteBuffer, ModuleFileName, strlen(ModuleFileName) + 1, &Bytes))
     {
         warn("cannot write memory in process id %lu", ProcessId);
         ExitCode = 1;

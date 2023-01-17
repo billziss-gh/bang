@@ -23,8 +23,9 @@
         __VA_ARGS__;                    \
         *lpProcessInformation = (PROCESS_INFORMATION){ 0 };\
         TlsSetValue(CreateProcessPacketTlsIndex, &CreateProcessPacket);\
-        Result = PreprocessPacket ## T(&CreateProcessPacket);\
-        if (Result)                     \
+        CreateProcessPacket.Detour = TRUE;\
+        PreprocessPacket ## T(&CreateProcessPacket);\
+        if (CreateProcessPacket.Detour) \
             Result = DetourCreateProcessWithDllEx ## T(\
                 ARG(lpApplicationName), \
                 ARG(lpCommandLine),     \
@@ -115,8 +116,8 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
     LPPROCESS_INFORMATION lpProcessInformation);
 
 static DWORD CreateProcessPacketTlsIndex = TLS_OUT_OF_INDEXES;
-static BOOL (*PreprocessPacketA)(struct CreateProcessPacketA *);
-static BOOL (*PreprocessPacketW)(struct CreateProcessPacketW *);
+static VOID (*PreprocessPacketA)(struct CreateProcessPacketA *);
+static VOID (*PreprocessPacketW)(struct CreateProcessPacketW *);
 
 HOOK_IMPL(CreateProcessA, A, (
     LPCSTR lpApplicationName,
@@ -429,8 +430,8 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
 }
 
 VOID HookCreateProcess(BOOL Flag,
-    BOOL (*PreprocessA)(struct CreateProcessPacketA *),
-    BOOL (*PreprocessW)(struct CreateProcessPacketW *))
+    VOID (*PreprocessA)(struct CreateProcessPacketA *),
+    VOID (*PreprocessW)(struct CreateProcessPacketW *))
 {
     if (Flag)
         CreateProcessPacketTlsIndex = TlsAlloc();
