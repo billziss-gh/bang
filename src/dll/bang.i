@@ -34,11 +34,14 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
             if ('0' <= *P && *P <= '9' && Argc > *P - '0')
                 Length += XSYM(lstrlen)(Argv[*P - '0']);
             break;
+#if 0
+        /* backslash is the path sep on Windows, so using it for escape is asking for trouble */
         case '\\':
             if ('\0' == P[1])
                 goto default_length;
             P++;
             /* fallthrough */
+#endif
         default:
         default_length:
             Length++;
@@ -63,11 +66,14 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
                 Q += L;
             }
             break;
+#if 0
+        /* backslash is the path sep on Windows, so using it for escape is asking for trouble */
         case '\\':
             if ('\0' == P[1])
                 goto default_copy;
             P++;
             /* fallthrough */
+#endif
         default:
         default_copy:
             *Q++ = *P;
@@ -84,6 +90,114 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
 /*
  * bang execution
  */
+
+struct XSYM(BangInterpreterMapEntry)
+{
+    XTYP *PosixPath, *WindowsPath;
+};
+static struct XSYM(BangInterpreterMapEntry) XSYM(BangInterpreterMap)[] =
+{
+    { XLIT("/usr/bin/env"), 0 },
+    { XLIT("/usr/bin/"), XLIT("%SYSTEMROOT%\\System32\\") },
+    { XLIT("/bin/"), XLIT("%SYSTEMROOT%\\System32\\") },
+};
+
+static
+BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
+    CHAR **PRestOfLine)
+{
+    XTYP *PosixPath, *WindowsPath, ApplicationName[MAX_PATH];
+    int PosixLength, WindowsLength, Length;
+
+    for (int I = 0; sizeof XSYM(BangInterpreterMap) / sizeof XSYM(BangInterpreterMap)[0] > I; I++)
+    {
+        PosixPath = XSYM(BangInterpreterMap)[I].PosixPath;
+        PosixLength = XSYM(lstrlen)(PosixPath);
+        if (0 < PosixLength && '/' == PosixPath[PosixLength - 1])
+        {
+            if (0 == XSTR(ncmp)(CreateProcessPacket->ApplicationName, PosixPath, PosixLength))
+            {
+                WindowsPath = XSYM(BangInterpreterMap)[I].WindowsPath;
+                WindowsLength = XSYM(lstrlen)(WindowsPath);
+                Length = XSYM(lstrlen)(CreateProcessPacket->ApplicationName + PosixLength);
+
+                if (WindowsLength + Length + sizeof ".exe" > MAX_PATH)
+                    return FALSE;
+
+                memcpy(
+                    ApplicationName,
+                    WindowsPath,
+                    WindowsLength * sizeof(XTYP));
+                memcpy(
+                    ApplicationName + WindowsLength,
+                    CreateProcessPacket->ApplicationName + PosixLength,
+                    Length * sizeof(XTYP));
+                memcpy(
+                    ApplicationName + WindowsLength + Length,
+                    XLIT(".exe"),
+                    sizeof ".exe" * sizeof(XTYP));
+
+                if (0 == XSYM(ExpandEnvironmentStrings)(
+                    ApplicationName, CreateProcessPacket->ApplicationName, MAX_PATH))
+                    return FALSE;
+
+                break;
+            }
+        }
+        else
+        if (0 == XSTR(cmp)(CreateProcessPacket->ApplicationName, PosixPath))
+        {
+            WindowsPath = XSYM(BangInterpreterMap)[I].WindowsPath;
+            if (0 == WindowsPath)
+            {
+                CHAR *Interpreter, *P;
+
+                for (P = *PRestOfLine; *P && (' ' == *P || '\t' == *P); P++)
+                    ;
+                Interpreter = P;
+
+                for (; *P && ' ' != *P && '\t' != *P; P++)
+                    ;
+                *PRestOfLine = P;
+
+                if (0 == (Length = XSYM(BangMultiByteToXChar)(
+                    Interpreter,
+                    (int)(*PRestOfLine - Interpreter),
+                    ApplicationName,
+                    MAX_PATH - 1)))
+                    return FALSE;
+                ApplicationName[Length] = '\0';
+
+                Length = XSYM(SearchPath)(
+                    0, ApplicationName, XLIT(".exe"), MAX_PATH, CreateProcessPacket->ApplicationName, 0);
+                if (0 == Length || MAX_PATH <= Length)
+                    return FALSE;
+
+                break;
+            }
+            else
+            {
+                WindowsLength = XSYM(lstrlen)(WindowsPath);
+
+                if (WindowsLength >= MAX_PATH)
+                    return FALSE;
+
+                memcpy(
+                    ApplicationName,
+                    WindowsPath,
+                    (WindowsLength + 1) * sizeof(XTYP));
+
+                if (0 == XSYM(ExpandEnvironmentStrings)(
+                    ApplicationName, CreateProcessPacket->ApplicationName, MAX_PATH))
+                    return FALSE;
+
+                break;
+            }
+        }
+    }
+
+    return TRUE;
+}
 
 static
 BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
@@ -107,13 +221,13 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
         goto exit;
     CreateProcessPacket->ApplicationName[Length] = '\0';
 
-    CommandLineLength = 0;
-    if (0 == (Length = XSYM(BangMultiByteToXChar)(
-        Interpreter,
-        (int)(RestOfLine - Interpreter),
-        CreateProcessPacket->CommandLine + CommandLineLength,
-        MAX_COMMANDLINE - 1 - CommandLineLength)))
+    if (!XSYM(BangRemapInterpreter)(CreateProcessPacket, &RestOfLine))
         goto exit;
+
+    CommandLineLength = 0;
+    Length = XSYM(lstrlen)(CreateProcessPacket->ApplicationName);
+    memcpy(CreateProcessPacket->CommandLine + CommandLineLength,
+        CreateProcessPacket->ApplicationName, Length * sizeof(XTYP));
     CommandLineLength += Length;
     CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
 

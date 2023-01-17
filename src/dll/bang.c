@@ -158,6 +158,8 @@ int BangMultiByteToXCharW(
 #define XLIT(S)                         S
 #undef  XSYM
 #define XSYM(N)                         N ## A
+#undef  XSTR
+#define XSTR(N)                         str ## N
 #include "bang.i"
 
 #undef  XTYP
@@ -166,4 +168,6 @@ int BangMultiByteToXCharW(
 #define XLIT(S)                         L ## S
 #undef  XSYM
 #define XSYM(N)                         N ## W
+#undef  XSTR
+#define XSTR(N)                         wcs ## N
 #include "bang.i"
