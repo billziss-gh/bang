@@ -201,7 +201,7 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
 
 static
 BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
-    XTYP *FilePath, XTYP *RestOfCommandLine, CHAR *Line)
+    CHAR *Line)
 {
     CHAR *Interpreter, *RestOfLine, *P;
     XTYP **Argv = 0, *NewRestOfLine = 0;
@@ -226,9 +226,13 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
 
     CommandLineLength = 0;
     Length = XSYM(lstrlen)(CreateProcessPacket->ApplicationName);
+    if (2/* quotes */ + Length > MAX_COMMANDLINE - 1 - CommandLineLength)
+        goto exit;
+    CreateProcessPacket->CommandLine[CommandLineLength++] = '\"';
     memcpy(CreateProcessPacket->CommandLine + CommandLineLength,
         CreateProcessPacket->ApplicationName, Length * sizeof(XTYP));
     CommandLineLength += Length;
+    CreateProcessPacket->CommandLine[CommandLineLength++] = '\"';
     CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
 
     if ('#' == Line[0])
@@ -245,13 +249,14 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
             CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
         }
 
-        if (RestOfCommandLine && *RestOfCommandLine)
+        if (0 != CreateProcessPacket->lpCommandLine)
         {
-            Length = XSYM(lstrlen)(RestOfCommandLine);
-            if (Length > MAX_COMMANDLINE - 1 - CommandLineLength)
+            Length = XSYM(lstrlen)(CreateProcessPacket->lpCommandLine);
+            if (1/* separator space */ + Length > MAX_COMMANDLINE - 1 - CommandLineLength)
                 goto exit;
+            CreateProcessPacket->CommandLine[CommandLineLength++] = ' ';
             memcpy(CreateProcessPacket->CommandLine + CommandLineLength,
-                RestOfCommandLine, Length * sizeof(XTYP));
+                CreateProcessPacket->lpCommandLine, Length * sizeof(XTYP));
             CommandLineLength += Length;
             CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
         }
@@ -275,16 +280,13 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
                 Argc, Argv, &NewRestOfLine))
                 goto exit;
 
-            if (*NewRestOfLine)
-            {
-                Length = XSYM(lstrlen)(NewRestOfLine);
-                if (Length > MAX_COMMANDLINE - 1 - CommandLineLength)
-                    goto exit;
-                memcpy(CreateProcessPacket->CommandLine + CommandLineLength,
-                    NewRestOfLine, Length * sizeof(XTYP));
-                CommandLineLength += Length;
-                CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
-            }
+            Length = XSYM(lstrlen)(NewRestOfLine);
+            if (Length > MAX_COMMANDLINE - 1 - CommandLineLength)
+                goto exit;
+            memcpy(CreateProcessPacket->CommandLine + CommandLineLength,
+                NewRestOfLine, Length * sizeof(XTYP));
+            CommandLineLength += Length;
+            CreateProcessPacket->CommandLine[CommandLineLength] = '\0';
         }
     }
 
@@ -305,7 +307,7 @@ exit:
 
 static
 VOID XSYM(BangExecute)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
-    XTYP *FilePath, XTYP *RestOfCommandLine)
+    XTYP *FilePath)
 {
     HANDLE Handle = INVALID_HANDLE_VALUE;
     CHAR Buffer[4096];
@@ -336,7 +338,7 @@ VOID XSYM(BangExecute)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
                 break;
             }
         Buffer[Bytes] = '\0';
-        XSYM(BangExecuteInterpreter)(CreateProcessPacket, FilePath, RestOfCommandLine, Buffer);
+        XSYM(BangExecuteInterpreter)(CreateProcessPacket, Buffer);
     }
 
 exit:
@@ -357,37 +359,11 @@ VOID XSYM(BangPreprocessPacket)(struct XSYM(CreateProcessPacket) *CreateProcessP
         return;
 
     XTYP FilePathBuf[MAX_PATH], FileNameBuf[MAX_PATH];
-    XTYP *RestOfCommandLine, *StartP, *P;
+    XTYP *StartP, *P;
     DWORD Length;
 
     FilePathBuf[0] = '\0';
     FileNameBuf[0] = '\0';
-    RestOfCommandLine = 0;
-
-    if (0 != CreateProcessPacket->lpCommandLine)
-    {
-        if ('\"' == CreateProcessPacket->lpCommandLine[0])
-        {
-            StartP = CreateProcessPacket->lpCommandLine + 1;
-            for (P = StartP; *P && '\"' != *P; P++)
-                ;
-            if (*P)
-                RestOfCommandLine = P + 1;
-        }
-        else
-        {
-            StartP = CreateProcessPacket->lpCommandLine;
-            for (P = StartP; *P && ' ' != *P && '\t' != *P; P++)
-                ;
-            RestOfCommandLine = P;
-        }
-
-        if (P - StartP < MAX_PATH)
-        {
-            memcpy(FileNameBuf, StartP, (P - StartP) * sizeof(XTYP));
-            FileNameBuf[P - StartP] = '\0';
-        }
-    }
 
     if (0 != CreateProcessPacket->lpApplicationName)
     {
@@ -396,12 +372,32 @@ VOID XSYM(BangPreprocessPacket)(struct XSYM(CreateProcessPacket) *CreateProcessP
             memcpy(FilePathBuf, CreateProcessPacket->lpApplicationName, (Length + 1) * sizeof(XTYP));
     }
     else
+    if (0 != CreateProcessPacket->lpCommandLine)
     {
-        Length = XSYM(SearchPath)(0, FileNameBuf, 0, MAX_PATH, FilePathBuf, 0);
-        if (0 == Length || MAX_PATH <= Length)
-            FilePathBuf[0] = '\0';
+        if ('\"' == CreateProcessPacket->lpCommandLine[0])
+        {
+            StartP = CreateProcessPacket->lpCommandLine + 1;
+            for (P = StartP; *P && '\"' != *P; P++)
+                ;
+        }
+        else
+        {
+            StartP = CreateProcessPacket->lpCommandLine;
+            for (P = StartP; *P && ' ' != *P && '\t' != *P; P++)
+                ;
+        }
+
+        if (P - StartP < MAX_PATH)
+        {
+            memcpy(FileNameBuf, StartP, (P - StartP) * sizeof(XTYP));
+            FileNameBuf[P - StartP] = '\0';
+
+            Length = XSYM(SearchPath)(0, FileNameBuf, 0, MAX_PATH, FilePathBuf, 0);
+            if (0 == Length || MAX_PATH <= Length)
+                FilePathBuf[0] = '\0';
+        }
     }
 
     if (FilePathBuf[0])
-        XSYM(BangExecute)(CreateProcessPacket, FilePathBuf, RestOfCommandLine);
+        XSYM(BangExecute)(CreateProcessPacket, FilePathBuf);
 }
