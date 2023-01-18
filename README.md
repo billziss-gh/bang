@@ -93,3 +93,33 @@ Bang treats some of the UNIX-like interpreter paths specially:
 ## How it works
 
 Bang uses the Microsoft [Detours](https://github.com/microsoft/Detours) library to intercept calls to the `CreateProcess` API, which is used to create new processes on Windows. When Bang receives an intercepted `CreateProcess` call, it examines the executed file to see if it starts with one of the character sequences `#!/` or `///`. If either sequence is found, then the file is treated as an interpreter script and the `CreateProcess` call is altered accordingly.
+
+Bang consists of a command line utility (EXE) and a dynamic link library (DLL). The DLL contains the `CreateProcess` interception machinery and when it is loaded into a process, the process acquires the Bang ability. Any new process started from a process that has the Bang ability is also bestowed the Bang ability.
+
+## Limitations
+
+Although a process with the Bang ability can execute interpreter scripts, some processes do not always know what to do with their newfound ability.
+
+For example, Powershell with the Bang ability does not know that it is able to execute non-EXE files. Consequently it treats them as document files and attempts to open them via `ShellExecute`. This still works because Bang also intercepts `ShellExecute`, but the experience is not quite the same as with native programs.
+
+```
+billziss@xps ⟩ ~ ⟩ .\prargs.test | sort
+Cannot run a document in the middle of a pipeline: C:\Users\billziss\prargs.test.
+At line:1 char:1
++ .\prargs.test | sort
++ ~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (C:\Users\billziss\prargs.test:String) [], Runtime
+   Exception
+    + FullyQualifiedErrorId : CantActivateDocumentInPipeline
+
+billziss@xps ⟩ ~ ⟩ Start-Process .\prargs.test -NoNewWindow -Wait | sort
+['C:\\Users\\billziss\\prargs.test']
+```
+
+There is work-in-progress to improve this experience. One trick that works is to name your script with a `.exe` extension!
+
+```
+billziss@xps ⟩ ~ ⟩ mv .\prargs.test .\prargs.exe
+billziss@xps ⟩ ~ ⟩ .\prargs.exe | sort
+['C:\\Users\\billziss\\prargs.exe']
+```
