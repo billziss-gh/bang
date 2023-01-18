@@ -20,8 +20,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\bang.c" />
-    <ClCompile Include="..\..\src\dll\cphook.c" />
+    <ClCompile Include="..\..\src\dll\hookcp.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
+    <ClCompile Include="..\..\src\dll\hooksh.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\bang.i" />

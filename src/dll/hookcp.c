@@ -1,5 +1,5 @@
 /*
- * dll/cphook.c
+ * dll/hookcp.c
  *
  * Copyright 2023 Bill Zissimopoulos
  */
@@ -24,7 +24,7 @@
         *lpProcessInformation = (PROCESS_INFORMATION){ 0 };\
         TlsSetValue(CreateProcessPacketTlsIndex, &CreateProcessPacket);\
         CreateProcessPacket.Detour = TRUE;\
-        PreprocessPacket ## T(&CreateProcessPacket);\
+        BeforeCreateProcess ## T(&CreateProcessPacket);\
         if (CreateProcessPacket.Detour) \
             Result = DetourCreateProcessWithDllEx ## T(\
                 ARG(lpApplicationName), \
@@ -40,7 +40,7 @@
                 ModuleFileNameA,        \
                 Wrap_ ## N);            \
         else                            \
-            Result = Wrap_ ## N(\
+            Result = Wrap_ ## N(        \
                 ARG(lpApplicationName), \
                 ARG(lpCommandLine),     \
                 ARG(lpProcessAttributes),\
@@ -116,8 +116,8 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
     LPPROCESS_INFORMATION lpProcessInformation);
 
 static DWORD CreateProcessPacketTlsIndex = TLS_OUT_OF_INDEXES;
-static VOID (*PreprocessPacketA)(struct CreateProcessPacketA *);
-static VOID (*PreprocessPacketW)(struct CreateProcessPacketW *);
+static VOID (*BeforeCreateProcessA)(struct CreateProcessPacketA *);
+static VOID (*BeforeCreateProcessW)(struct CreateProcessPacketW *);
 
 HOOK_IMPL(CreateProcessA, A, (
     LPCSTR lpApplicationName,
@@ -430,15 +430,15 @@ BOOL WINAPI Wrap_CreateProcessWithTokenW(
 }
 
 VOID HookCreateProcess(BOOL Flag,
-    VOID (*PreprocessA)(struct CreateProcessPacketA *),
-    VOID (*PreprocessW)(struct CreateProcessPacketW *))
+    VOID (*BeforeA)(struct CreateProcessPacketA *),
+    VOID (*BeforeW)(struct CreateProcessPacketW *))
 {
     if (Flag)
         CreateProcessPacketTlsIndex = TlsAlloc();
     if (Flag)
     {
-        PreprocessPacketA = PreprocessA;
-        PreprocessPacketW = PreprocessW;
+        BeforeCreateProcessA = BeforeA;
+        BeforeCreateProcessW = BeforeW;
     }
 
     if (TLS_OUT_OF_INDEXES != CreateProcessPacketTlsIndex)
@@ -453,8 +453,8 @@ VOID HookCreateProcess(BOOL Flag,
 
     if (!Flag)
     {
-        PreprocessPacketA = 0;
-        PreprocessPacketW = 0;
+        BeforeCreateProcessA = 0;
+        BeforeCreateProcessW = 0;
     }
     if (!Flag && TLS_OUT_OF_INDEXES != CreateProcessPacketTlsIndex)
         TlsFree(CreateProcessPacketTlsIndex);

@@ -10,10 +10,13 @@
     <ClCompile Include="..\..\src\dll\library.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\cphook.c">
+    <ClCompile Include="..\..\src\dll\hookcp.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\bang.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\hooksh.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

@@ -27,13 +27,15 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         DetourRestoreAfterWith();
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        HookCreateProcess(TRUE, BangPreprocessPacketA, BangPreprocessPacketW);
+        HookCreateProcess(TRUE, BangBeforeCreateProcessA, BangBeforeCreateProcessW);
+        HookShellExecute(TRUE, BangBeforeShellExecuteA, BangBeforeShellExecuteW);
         DetourTransactionCommit();
         break;
 
     case DLL_PROCESS_DETACH:
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
+        HookShellExecute(FALSE, 0, 0);
         HookCreateProcess(FALSE, 0, 0);
         DetourTransactionCommit();
         break;

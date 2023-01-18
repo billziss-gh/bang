@@ -307,11 +307,14 @@ exit:
 
 static
 VOID XSYM(BangExecute)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
-    XTYP *FilePath)
+    const XTYP *FilePath, PBOOL PIsExecutable)
 {
     HANDLE Handle = INVALID_HANDLE_VALUE;
     CHAR Buffer[4096];
     DWORD Bytes;
+
+    if (0 != PIsExecutable)
+        *PIsExecutable = FALSE;
 
     Handle = XSYM(CreateFile)(
         FilePath,
@@ -338,7 +341,11 @@ VOID XSYM(BangExecute)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
                 break;
             }
         Buffer[Bytes] = '\0';
-        XSYM(BangExecuteInterpreter)(CreateProcessPacket, Buffer);
+
+        if (0 != PIsExecutable)
+            *PIsExecutable = TRUE;
+        else
+            XSYM(BangExecuteInterpreter)(CreateProcessPacket, Buffer);
     }
 
 exit:
@@ -346,7 +353,7 @@ exit:
         CloseHandle(Handle);
 }
 
-VOID XSYM(BangPreprocessPacket)(struct XSYM(CreateProcessPacket) *CreateProcessPacket)
+VOID XSYM(BangBeforeCreateProcess)(struct XSYM(CreateProcessPacket) *CreateProcessPacket)
 {
     if (BangDebugFlags)
     {
@@ -399,5 +406,38 @@ VOID XSYM(BangPreprocessPacket)(struct XSYM(CreateProcessPacket) *CreateProcessP
     }
 
     if (FilePathBuf[0])
-        XSYM(BangExecute)(CreateProcessPacket, FilePathBuf);
+        XSYM(BangExecute)(CreateProcessPacket, FilePathBuf, 0);
+}
+
+VOID XSYM(BangBeforeShellExecute)(XSYM(SHELLEXECUTEINFO) *ShellExecuteInfo)
+{
+    static XTYP ClassName[] = XLIT(".exe");
+    BOOL IsExecutable;
+
+    if (sizeof *ShellExecuteInfo > ShellExecuteInfo->cbSize)
+        return;
+
+    if (ShellExecuteInfo->fMask & ~(
+        SEE_MASK_NOCLOSEPROCESS |
+        SEE_MASK_NOASYNC |
+        SEE_MASK_DOENVSUBST |
+        SEE_MASK_FLAG_NO_UI |
+        SEE_MASK_UNICODE |
+        SEE_MASK_NO_CONSOLE |
+        SEE_MASK_ASYNCOK))
+        return;
+
+    if (0 != ShellExecuteInfo->lpVerb &&
+        0 != XSTR(cmp)(XLIT("open"), ShellExecuteInfo->lpVerb))
+        return;
+
+    if (0 == ShellExecuteInfo->lpFile)
+        return;
+
+    XSYM(BangExecute)(0, ShellExecuteInfo->lpFile, &IsExecutable);
+    if (IsExecutable)
+    {
+        ShellExecuteInfo->fMask |= SEE_MASK_CLASSNAME | SEE_MASK_FLAG_NO_UI | SEE_MASK_NO_CONSOLE;
+        ShellExecuteInfo->lpClass = ClassName;
+    }
 }

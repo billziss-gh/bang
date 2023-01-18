@@ -69,10 +69,15 @@ struct CreateProcessPacketW
 };
 
 VOID HookCreateProcess(BOOL Flag,
-    VOID (*PreprocessA)(struct CreateProcessPacketA *),
-    VOID (*PreprocessW)(struct CreateProcessPacketW *));
+    VOID (*BeforeA)(struct CreateProcessPacketA *),
+    VOID (*BeforeW)(struct CreateProcessPacketW *));
+VOID HookShellExecute(BOOL Flag,
+    VOID (*BeforeA)(SHELLEXECUTEINFOA *),
+    VOID (*BeforeW)(SHELLEXECUTEINFOW *));
 
-VOID BangPreprocessPacketA(struct CreateProcessPacketA *CreateProcessPacket);
-VOID BangPreprocessPacketW(struct CreateProcessPacketW *CreateProcessPacket);
+VOID BangBeforeCreateProcessA(struct CreateProcessPacketA *CreateProcessPacket);
+VOID BangBeforeCreateProcessW(struct CreateProcessPacketW *CreateProcessPacket);
+VOID BangBeforeShellExecuteA(SHELLEXECUTEINFOA *ShellExecuteInfo);
+VOID BangBeforeShellExecuteW(SHELLEXECUTEINFOW *ShellExecuteInfo);
 
 #endif
