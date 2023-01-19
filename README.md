@@ -1,4 +1,10 @@
-# Bang - #! script execution for Windows
+<h1 align="center">
+<img src="art/bang.png" width="256"/>
+<br/>
+<br/>
+Bang - #! script execution for Windows
+</h1>
+
 
 Bang adds to Windows programs the ability to execute interpreter scripts. Such scripts start with the `#!` character sequence, sometimes referred to as "hash-bang" or "she-bang".
 
