@@ -1,7 +1,6 @@
 <h1 align="center">
 <img src="art/bang.png" width="256"/>
 <br/>
-<br/>
 Bang - #! script execution for Windows
 </h1>
 
