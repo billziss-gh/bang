@@ -256,6 +256,10 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
     int CommandLineLength, Length, Argc;
     BOOL Result = FALSE;
 
+    CreateProcessPacket->CommandLine = HeapAlloc(GetProcessHeap(), 0, MAX_COMMANDLINE);
+    if (0 == CreateProcessPacket->CommandLine)
+        goto exit;
+
     Interpreter = Line + 2;
     for (P = Interpreter; *P && ' ' != *P && '\t' != *P; P++)
         ;

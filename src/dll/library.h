@@ -39,7 +39,7 @@ struct CreateProcessPacketA
     /* extra */
     BOOL Detour;
     CHAR ApplicationName[MAX_PATH];
-    CHAR CommandLine[MAX_COMMANDLINE];
+    CHAR *CommandLine;
 };
 
 struct CreateProcessPacketW
@@ -65,7 +65,7 @@ struct CreateProcessPacketW
     /* extra */
     BOOL Detour;
     WCHAR ApplicationName[MAX_PATH];
-    WCHAR CommandLine[MAX_COMMANDLINE];
+    WCHAR *CommandLine;
 };
 
 VOID HookCreateProcess(BOOL Flag,

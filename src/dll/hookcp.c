@@ -19,11 +19,13 @@
     BOOL WINAPI Hook_ ## N A            \
     {                                   \
         struct CreateProcessPacket ## T CreateProcessPacket;\
+        DWORD LastError;                \
         BOOL Result;                    \
-        __VA_ARGS__;                    \
         *lpProcessInformation = (PROCESS_INFORMATION){ 0 };\
-        TlsSetValue(CreateProcessPacketTlsIndex, &CreateProcessPacket);\
         CreateProcessPacket.Detour = TRUE;\
+        CreateProcessPacket.CommandLine = 0;\
+        __VA_ARGS__;                    \
+        TlsSetValue(CreateProcessPacketTlsIndex, &CreateProcessPacket);\
         BeforeCreateProcess ## T(&CreateProcessPacket);\
         if (CreateProcessPacket.Detour) \
             Result = DetourCreateProcessWithDllEx ## T(\
@@ -51,7 +53,11 @@
                 ARG(lpCurrentDirectory),\
                 ARG(lpStartupInfo),     \
                 &ARG(ProcessInformation));\
+        LastError = GetLastError();     \
         TlsSetValue(CreateProcessPacketTlsIndex, 0);\
+        if (0 != CreateProcessPacket.CommandLine)\
+            HeapFree(GetProcessHeap(), 0, CreateProcessPacket.CommandLine);\
+        SetLastError(LastError);        \
         if (Result)                     \
             *lpProcessInformation = ARG(ProcessInformation);\
         return Result;                  \
