@@ -16,6 +16,34 @@
  */
 
 static
+int XSYM(BangAllArgumentsLength)(int Argc, XTYP **Argv, BOOL Quote)
+{
+    int Length = 0, QuoteLength = Quote ? 2 : 0;
+    for (int I = 1; Argc > I; I++)
+        Length += (1 < I) + QuoteLength + XSYM(lstrlen)(Argv[I]);
+    return Length;
+}
+
+static
+XTYP *XSYM(BangAllArgumentsCopy)(int Argc, XTYP **Argv, BOOL Quote, XTYP *Q)
+{
+    int L = 0;
+    for (int I = 1; Argc > I; I++)
+    {
+        if (1 < I)
+            *Q++ = ' ';
+        if (Quote)
+            *Q++ = '\"';
+        L = XSYM(lstrlen)(Argv[I]);
+        memcpy(Q, Argv[I], L * sizeof(XTYP));
+        Q += L;
+        if (Quote)
+            *Q++ = '\"';
+    }
+    return Q;
+}
+
+static
 BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNewString)
 {
     XTYP *NewString = 0, *P, *Q;
@@ -33,7 +61,17 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
             P++;
             if ('0' <= *P && *P <= '9' && Argc > *P - '0')
                 Length += XSYM(lstrlen)(Argv[*P - '0']);
+            else if ('@' == *P)
+                Length += XSYM(BangAllArgumentsLength)(Argc, Argv, FALSE);
             break;
+        case '\"':
+            if ('$' == P[1] && '@' == P[2] && '\"' == P[3])
+            {
+                P += 3;
+                Length += XSYM(BangAllArgumentsLength)(Argc, Argv, TRUE);
+                break;
+            }
+            goto default_length;
 #if 0
         /* backslash is the path sep on Windows, so using it for escape is asking for trouble */
         case '\\':
@@ -65,7 +103,17 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
                 memcpy(Q, Argv[*P - '0'], L * sizeof(XTYP));
                 Q += L;
             }
+            else if ('@' == *P)
+                Q = XSYM(BangAllArgumentsCopy)(Argc, Argv, FALSE, Q);
             break;
+        case '\"':
+            if ('$' == P[1] && '@' == P[2] && '\"' == P[3])
+            {
+                P += 3;
+                Q = XSYM(BangAllArgumentsCopy)(Argc, Argv, TRUE, Q);
+                break;
+            }
+            goto default_length;
 #if 0
         /* backslash is the path sep on Windows, so using it for escape is asking for trouble */
         case '\\':
@@ -204,7 +252,7 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
     CHAR *Line)
 {
     CHAR *Interpreter, *RestOfLine, *P;
-    XTYP **Argv = 0, *NewRestOfLine = 0;
+    XTYP **Argv = 0, *NewRestOfLine = 0, *ExitCommand, *X;
     int CommandLineLength, Length, Argc;
     BOOL Result = FALSE;
 
@@ -273,6 +321,25 @@ BOOL XSYM(BangExecuteInterpreter)(struct XSYM(CreateProcessPacket) *CreateProces
                 MAX_COMMANDLINE - 1 - CommandLineLength)))
                 goto exit;
             CreateProcessPacket->CommandLine[CommandLineLength + Length] = '\0';
+
+            /* strip "; exit at the end */
+            for (X = CreateProcessPacket->CommandLine + CommandLineLength + Length - 1;
+                CreateProcessPacket->CommandLine + CommandLineLength <= X && ';' != *X && '\"' != *X;
+                X--)
+                ;
+            if (CreateProcessPacket->CommandLine + CommandLineLength <= X && ';' == *X)
+            {
+                ExitCommand = X;
+                for (X++; *X && (' ' == *X || '\t' == *X); X++)
+                    ;
+                if (0 == XSTR(ncmp)(X, XLIT("exit"), 4))
+                {
+                    for (X += 4; *X && (' ' == *X || '\t' == *X); X++)
+                        ;
+                    if ('\0' == *X)
+                        *ExitCommand = '\0';
+                }
+            }
 
             if (!XSYM(BangParseCommandLine)(CreateProcessPacket->lpCommandLine, &Argc, &Argv))
                 goto exit;
