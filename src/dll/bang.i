@@ -204,12 +204,20 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
             WindowsLength = XSYM(lstrlen)(P);
         }
 
-        if (0 < PosixLength && '/' == PosixPath[PosixLength - 1])
+        if (0 < PosixLength && '/' == PosixPath[PosixLength - 1] &&
+            0 == XSTR(ncmp)(CreateProcessPacket->ApplicationName, PosixPath, PosixLength))
         {
-            if (0 == XSTR(ncmp)(CreateProcessPacket->ApplicationName, PosixPath, PosixLength))
+            if ('\0' == *WindowsPath)
+            {
+                XSYM(lstrcpy)(ApplicationName, CreateProcessPacket->ApplicationName + PosixLength);
+
+                Length = XSYM(SearchPath)(
+                    0, ApplicationName, XLIT(".exe"), MAX_PATH, CreateProcessPacket->ApplicationName, 0);
+                return 0 < Length && Length < MAX_PATH; /* term-0 not included in Length */
+            }
+            else
             {
                 Length = XSYM(lstrlen)(CreateProcessPacket->ApplicationName + PosixLength);
-
                 if (WindowsLength + Length + sizeof ".exe" > MAX_PATH)
                     return FALSE;
 
@@ -241,7 +249,6 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
                 for (P = *PRestOfLine; *P && (' ' == *P || '\t' == *P); P++)
                     ;
                 Interpreter = P;
-
                 for (; *P && ' ' != *P && '\t' != *P; P++)
                     ;
                 *PRestOfLine = P;
