@@ -486,7 +486,7 @@ BOOL XSYM(BangShouldExecute)(const XTYP *FilePath)
         Q = XSTR(chr)(P, ';');
         if (Q)
             *Q++ = '\0';
-        if (0 == XSTR(ncmp)(DirName, P, XSYM(lstrlen)(P)))
+        if (0 == XSTR(nicmp)(DirName, P, XSYM(lstrlen)(P)))
             return TRUE;
     }
 
@@ -519,13 +519,13 @@ BOOL XSYM(BangShouldDetour)(const XTYP *FilePath)
         if (0 != XSTR(chr)(P, '\\'))
         {
             /* match full path; we do not care about alternate names from symlinks, etc. */
-            if (0 == XSTR(cmp)(FilePath, P))
+            if (0 == XSTR(icmp)(FilePath, P))
                 return TRUE;
         }
         else
         {
             /* match base name */
-            if (0 == XSTR(cmp)(BaseName, P))
+            if (0 == XSTR(icmp)(BaseName, P))
                 return TRUE;
         }
     }
@@ -590,9 +590,10 @@ VOID XSYM(BangBeforeCreateProcess)(struct XSYM(CreateProcessPacket) *CreateProce
     {
         if (XSYM(BangShouldExecute)(FilePathBuf))
             XSYM(BangExecute)(CreateProcessPacket, FilePathBuf, 0);
-        CreateProcessPacket->Detour = XSYM(BangShouldDetour)(
-            CreateProcessPacket->lpApplicationName == CreateProcessPacket->ApplicationName ?
-                CreateProcessPacket->ApplicationName : FilePathBuf);
+        /* do not detour if we are executing an interpreter script to avoid recursive execution */
+        CreateProcessPacket->Detour =
+            CreateProcessPacket->lpApplicationName != CreateProcessPacket->ApplicationName &&
+                XSYM(BangShouldDetour)(FilePathBuf);
     }
 }
 

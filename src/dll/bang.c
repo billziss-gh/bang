@@ -152,6 +152,15 @@ int BangMultiByteToXCharW(
  * bang execution
  */
 
+#undef  strnicmp
+#define strnicmp(s, t, n)               _strnicmp(s, t, n)
+#undef  stricmp
+#define stricmp(s, t)                   _stricmp(s, t)
+#undef  wcsnicmp
+#define wcsnicmp(s, t, n)               _wcsnicmp(s, t, n)
+#undef  wcsicmp
+#define wcsicmp(s, t)                   _wcsicmp(s, t)
+
 #undef  XTYP
 #define XTYP                            CHAR
 #undef  XLIT
