@@ -12,6 +12,24 @@
 
 
 /*
+ * registry
+ */
+
+static inline
+BOOL XSYM(BangRegGetValue)(XTYP *Name, XTYP *Buffer, PDWORD PLength)
+{
+    return ERROR_SUCCESS == XSYM(RegGetValue)(
+        HKEY_CURRENT_USER,
+        XLIT("Software\\Bang"),
+        Name,
+        RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
+        0,
+        Buffer,
+        PLength);
+}
+
+
+/*
  * argument handling
  */
 
@@ -139,34 +157,57 @@ BOOL XSYM(BangReplaceArguments)(XTYP *String, int Argc, XTYP **Argv, XTYP **PNew
  * bang execution
  */
 
-struct XSYM(BangInterpreterMapEntry)
-{
-    XTYP *PosixPath, *WindowsPath;
-};
-static struct XSYM(BangInterpreterMapEntry) XSYM(BangInterpreterMap)[] =
-{
-    { XLIT("/usr/bin/env"), 0 },
-    { XLIT("/usr/bin/"), XLIT("%SYSTEMROOT%\\System32\\") },
-    { XLIT("/bin/"), XLIT("%SYSTEMROOT%\\System32\\") },
-};
-
 static
 BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessPacket,
     CHAR **PRestOfLine)
 {
+    static XTYP DefaultPathmap[] = XLIT(
+        "/usr/bin/env*;"
+        "/usr/bin/*%SYSTEMROOT%\\System32\\;"
+        "/bin/*%SYSTEMROOT%\\System32\\"
+    );
+    XTYP Pathmap[4096], *P, *Q;
     XTYP *PosixPath, *WindowsPath, ApplicationName[MAX_PATH];
-    int PosixLength, WindowsLength, Length;
+    DWORD PosixLength, WindowsLength, Length;
 
-    for (int I = 0; sizeof XSYM(BangInterpreterMap) / sizeof XSYM(BangInterpreterMap)[0] > I; I++)
+    Length = sizeof Pathmap;
+    if (!XSYM(BangRegGetValue)(XLIT("Pathmap"), Pathmap, &Length))
     {
-        PosixPath = XSYM(BangInterpreterMap)[I].PosixPath;
-        PosixLength = XSYM(lstrlen)(PosixPath);
+        if (0 == XSYM(ExpandEnvironmentStrings)(
+            DefaultPathmap, Pathmap, sizeof Pathmap / sizeof Pathmap[0]))
+            return FALSE;
+    }
+
+    for (P = Pathmap; P && *P; P = Q)
+    {
+        Q = XSTR(chr)(P, '*');
+        if (Q)
+        {
+            PosixPath = P;
+            PosixLength = (DWORD)(Q - P);
+            *Q++ = '\0';
+        }
+        else
+            break;
+
+        P = Q;
+        Q = XSTR(chr)(P, ';');
+        if (Q)
+        {
+            WindowsPath = P;
+            WindowsLength = (DWORD)(Q - P);
+            *Q++ = '\0';
+        }
+        else
+        {
+            WindowsPath = P;
+            WindowsLength = XSYM(lstrlen)(P);
+        }
+
         if (0 < PosixLength && '/' == PosixPath[PosixLength - 1])
         {
             if (0 == XSTR(ncmp)(CreateProcessPacket->ApplicationName, PosixPath, PosixLength))
             {
-                WindowsPath = XSYM(BangInterpreterMap)[I].WindowsPath;
-                WindowsLength = XSYM(lstrlen)(WindowsPath);
                 Length = XSYM(lstrlen)(CreateProcessPacket->ApplicationName + PosixLength);
 
                 if (WindowsLength + Length + sizeof ".exe" > MAX_PATH)
@@ -185,18 +226,15 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
                     XLIT(".exe"),
                     sizeof ".exe" * sizeof(XTYP));
 
-                if (0 == XSYM(ExpandEnvironmentStrings)(
-                    ApplicationName, CreateProcessPacket->ApplicationName, MAX_PATH))
-                    return FALSE;
-
-                break;
+                Length = XSYM(GetFullPathName)(
+                    ApplicationName, MAX_PATH, CreateProcessPacket->ApplicationName, 0);
+                return 0 < Length && Length <= MAX_PATH; /* term-0 included in Length */
             }
         }
         else
         if (0 == XSTR(cmp)(CreateProcessPacket->ApplicationName, PosixPath))
         {
-            WindowsPath = XSYM(BangInterpreterMap)[I].WindowsPath;
-            if (0 == WindowsPath)
+            if ('\0' == *WindowsPath)
             {
                 CHAR *Interpreter, *P;
 
@@ -218,15 +256,10 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
 
                 Length = XSYM(SearchPath)(
                     0, ApplicationName, XLIT(".exe"), MAX_PATH, CreateProcessPacket->ApplicationName, 0);
-                if (0 == Length || MAX_PATH <= Length)
-                    return FALSE;
-
-                break;
+                return 0 < Length && Length < MAX_PATH; /* term-0 not included in Length */
             }
             else
             {
-                WindowsLength = XSYM(lstrlen)(WindowsPath);
-
                 if (WindowsLength >= MAX_PATH)
                     return FALSE;
 
@@ -235,16 +268,14 @@ BOOL XSYM(BangRemapInterpreter)(struct XSYM(CreateProcessPacket) *CreateProcessP
                     WindowsPath,
                     (WindowsLength + 1) * sizeof(XTYP));
 
-                if (0 == XSYM(ExpandEnvironmentStrings)(
-                    ApplicationName, CreateProcessPacket->ApplicationName, MAX_PATH))
-                    return FALSE;
-
-                break;
+                Length = XSYM(GetFullPathName)(
+                    ApplicationName, MAX_PATH, CreateProcessPacket->ApplicationName, 0);
+                return 0 < Length && Length <= MAX_PATH; /* term-0 included in Length */
             }
         }
     }
 
-    return TRUE;
+    return FALSE;
 }
 
 static
@@ -424,6 +455,77 @@ exit:
         CloseHandle(Handle);
 }
 
+static
+BOOL XSYM(BangShouldExecute)(const XTYP *FilePath)
+{
+    /* FilePath should be full path */
+
+    XTYP Directories[4096], DirName[MAX_PATH], *P, *Q;
+    DWORD Length;
+
+    Length = sizeof Directories;
+    if (!XSYM(BangRegGetValue)(XLIT("Directories"), Directories, &Length))
+        return TRUE;
+
+    XSYM(lstrcpy)(DirName, FilePath);
+    P = XSTR(rchr)(DirName, '\\');
+    if (0 != P)
+        *++P = '\0';
+    else
+        return FALSE;
+
+    for (P = Directories; P && *P; P = Q)
+    {
+        Q = XSTR(chr)(P, ';');
+        if (Q)
+            *Q++ = '\0';
+        if (0 == XSTR(ncmp)(DirName, P, XSYM(lstrlen)(P)))
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+static
+BOOL XSYM(BangShouldDetour)(const XTYP *FilePath)
+{
+    /* FilePath should be full path */
+
+    XTYP Programs[4096], *BaseName, *P, *Q;
+    DWORD Length;
+
+    Length = sizeof Programs;
+    if (!XSYM(BangRegGetValue)(XLIT("Programs"), Programs, &Length))
+        return TRUE;
+
+    BaseName = XSTR(rchr)(FilePath, '\\');
+    if (0 != BaseName)
+        BaseName++;
+    else
+        return FALSE;
+
+    for (P = Programs; P && *P; P = Q)
+    {
+        Q = XSTR(chr)(P, ';');
+        if (Q)
+            *Q++ = '\0';
+        if (0 != XSTR(chr)(P, '\\'))
+        {
+            /* match full path; we do not care about alternate names from symlinks, etc. */
+            if (0 == XSTR(cmp)(FilePath, P))
+                return TRUE;
+        }
+        else
+        {
+            /* match base name */
+            if (0 == XSTR(cmp)(BaseName, P))
+                return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 VOID XSYM(BangBeforeCreateProcess)(struct XSYM(CreateProcessPacket) *CreateProcessPacket)
 {
     if (BangDebugFlags)
@@ -445,9 +547,10 @@ VOID XSYM(BangBeforeCreateProcess)(struct XSYM(CreateProcessPacket) *CreateProce
 
     if (0 != CreateProcessPacket->lpApplicationName)
     {
-        Length = XSYM(lstrlen)(CreateProcessPacket->lpApplicationName);
-        if (MAX_PATH > Length)
-            memcpy(FilePathBuf, CreateProcessPacket->lpApplicationName, (Length + 1) * sizeof(XTYP));
+        Length = XSYM(GetFullPathName)(
+            CreateProcessPacket->lpApplicationName, MAX_PATH, FilePathBuf, 0);
+        if (0 == Length || MAX_PATH < Length)
+            FilePathBuf[0] = '\0';
     }
     else
     if (0 != CreateProcessPacket->lpCommandLine)
@@ -477,38 +580,49 @@ VOID XSYM(BangBeforeCreateProcess)(struct XSYM(CreateProcessPacket) *CreateProce
     }
 
     if (FilePathBuf[0])
-        XSYM(BangExecute)(CreateProcessPacket, FilePathBuf, 0);
+    {
+        if (XSYM(BangShouldExecute)(FilePathBuf))
+            XSYM(BangExecute)(CreateProcessPacket, FilePathBuf, 0);
+        CreateProcessPacket->Detour = XSYM(BangShouldDetour)(
+            CreateProcessPacket->lpApplicationName == CreateProcessPacket->ApplicationName ?
+                CreateProcessPacket->ApplicationName : FilePathBuf);
+    }
 }
 
 VOID XSYM(BangBeforeShellExecute)(XSYM(SHELLEXECUTEINFO) *ShellExecuteInfo)
 {
     static XTYP ClassName[] = XLIT(".exe");
+    XTYP FilePathBuf[MAX_PATH];
+    DWORD Length;
     BOOL IsExecutable;
 
-    if (sizeof *ShellExecuteInfo > ShellExecuteInfo->cbSize)
-        return;
-
-    if (ShellExecuteInfo->fMask & ~(
-        SEE_MASK_NOCLOSEPROCESS |
-        SEE_MASK_NOASYNC |
-        SEE_MASK_DOENVSUBST |
-        SEE_MASK_FLAG_NO_UI |
-        SEE_MASK_UNICODE |
-        SEE_MASK_NO_CONSOLE |
-        SEE_MASK_ASYNCOK))
-        return;
-
-    if (0 != ShellExecuteInfo->lpVerb &&
-        0 != XSTR(cmp)(XLIT("open"), ShellExecuteInfo->lpVerb))
-        return;
-
-    if (0 == ShellExecuteInfo->lpFile)
-        return;
-
-    XSYM(BangExecute)(0, ShellExecuteInfo->lpFile, &IsExecutable);
-    if (IsExecutable)
+    if (sizeof *ShellExecuteInfo == ShellExecuteInfo->cbSize &&
+        (0 == (ShellExecuteInfo->fMask & ~(
+            SEE_MASK_NOCLOSEPROCESS |
+            SEE_MASK_NOASYNC |
+            SEE_MASK_DOENVSUBST |
+            SEE_MASK_FLAG_NO_UI |
+            SEE_MASK_UNICODE |
+            SEE_MASK_NO_CONSOLE |
+            SEE_MASK_ASYNCOK))) &&
+        (0 == ShellExecuteInfo->lpVerb ||
+            0 == XSTR(cmp)(XLIT("open"), ShellExecuteInfo->lpVerb) ||
+            0 == XSTR(cmp)(XLIT("runas"), ShellExecuteInfo->lpVerb) ||
+            0 == XSTR(cmp)(XLIT("runasuser"), ShellExecuteInfo->lpVerb)) &&
+        0 != ShellExecuteInfo->lpFile)
     {
-        ShellExecuteInfo->fMask |= SEE_MASK_CLASSNAME | SEE_MASK_FLAG_NO_UI | SEE_MASK_NO_CONSOLE;
-        ShellExecuteInfo->lpClass = ClassName;
+        Length = XSYM(GetFullPathName)(
+            ShellExecuteInfo->lpFile, MAX_PATH, FilePathBuf, 0);
+        if (0 == Length || MAX_PATH < Length)
+            ;
+        else if (XSYM(BangShouldExecute)(FilePathBuf))
+        {
+            XSYM(BangExecute)(0, FilePathBuf, &IsExecutable);
+            if (IsExecutable)
+            {
+                ShellExecuteInfo->fMask |= SEE_MASK_CLASSNAME | SEE_MASK_FLAG_NO_UI | SEE_MASK_NO_CONSOLE;
+                ShellExecuteInfo->lpClass = ClassName;
+            }
+        }
     }
 }
