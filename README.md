@@ -109,7 +109,7 @@ Bang can be configured via the registry key `HKEY_CURRENT_USER\Software\Bang`. (
 
     - If `WindowsPath` is missing then searches are performed according to the `PATH` environment variable.
 
-    - If `UnixPath` ends in slash `/` then it refers to a directory and matches against it are performed using prefix-matching. In this case `WindowsPath` must end in a backslash `\` and the UnixPath will be replaced by the WindowsPath. For example, the Pathmap `/usr/bin/*C:\Windows\System32\` will map `/usr/bin/cmd` to `C:\Windows\System32\cmd.exe` and the Pathmap `/usr/bin/*` will map `/usr/bin/cmd` to the `cmd.exe` file found by a `PATH` search.
+    - If `UnixPath` ends in slash `/` then it refers to a directory and matches against it are performed using prefix-matching. In this case `WindowsPath` must end in a backslash `\` and the `UnixPath` will be replaced by the `WindowsPath`. For example, the Pathmap `/usr/bin/*C:\Windows\System32\` will map `/usr/bin/cmd` to `C:\Windows\System32\cmd.exe` and the Pathmap `/usr/bin/*` will map `/usr/bin/cmd` to the `cmd.exe` file found by a `PATH` search.
 
     - If `UnixPath` does not end in slash then behavior depends: - If `WindowsPath` is missing then Bang will use the first optional argument in the intepreter line as the program to find by a `PATH` search. For example, the Pathmap `/usr/bin/env*` will map the interpreter line `#!/usr/bin/env cmd` to the `cmd.exe` file found by a `PATH` search. - If `WindowsPath` is present then Bang will simply substitute the `WindowsPath` in place of the `UnixPath`. For example, the Pathmap `/usr/bin/cmd*C:\Windows\System32\cmd.exe` will perform the obvious substitution.
 
@@ -145,7 +145,7 @@ The Bang DLL uses the Microsoft [Detours](https://github.com/microsoft/Detours) 
 
 There are two main security concerns:
 
-- Bang enables any text file to become executable by simply adding the `#!/` or `///` script magic. To mitigate this use the `Directories` configuration setting to control the directory trees where scripts can reside.
+- Bang enables any text file to become executable by simply adding the `#!/` or `///` script magic. To mitigate this risk use the `Directories` configuration setting to control the directory trees where scripts can reside.
 
 - Bang injects its DLL into other processes. This DLL represents foreign code to these processes and has an associated risk. To mitigate this risk use the `Programs` configuration setting to control which processes inherit the Bang ability.
 
